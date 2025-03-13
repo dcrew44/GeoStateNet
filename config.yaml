@@ -1,0 +1,44 @@
+# Configuration for state classification model
+
+# General settings
+seed: 42
+batch_size: 32
+num_workers: 2
+train_val_split: 0.8
+
+# Paths (these are overridden in Colab)
+# Paths
+dataset_root: "data/train"
+test_dataset_root: "data/test"
+checkpoints_dir: "checkpoints"
+test_groups_per_batch: 16
+
+# Model configuration
+model_cfg:
+  num_classes: 50
+  architecture: "resnet101"
+  pretrained: true
+
+# Training hyperparameters
+hyperparameters:
+  # Phase 1: Head-only training
+  num_epochs: 10
+  lr: 0.001
+  weight_decay: 0.01
+  momentum: 0.9
+  betas: [0.9, 0.999]
+  optimizer: "AdamW"
+
+  # Phase 2: Fine-tuning
+  phase2_epochs: 5
+  finetune_lr: 0.0001
+  finetune_weight_decay: 0.001
+
+  # Early stopping
+  patience: 3
+  early_stopping_delta: 0.001
+
+# Wandb settings
+wandb:
+  project: "state-classifier"
+  log_interval: 10
