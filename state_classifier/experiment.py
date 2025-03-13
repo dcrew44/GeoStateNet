@@ -130,7 +130,8 @@ class Experiment:
             train_transforms=train_transforms,
             val_transforms=val_transforms,
             train_val_split=self.config.train_val_split,
-            seed=self.config.seed
+            seed=self.config.seed,
+            full_dataset_size=self.config.full_dataset_size  # Add this line
         )
 
         # Create dataloaders

@@ -54,7 +54,7 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--train_size",
+        "--full_dataset_size",
         type=float,
         default=1.0,
         help="Training set size. Choose smaller values (0.2) for running experiments on smaller datasets."
@@ -70,7 +70,8 @@ def main():
 
     # Load configuration
     config = load_config(args.config)
-    config.fulldataset_size = args.train_size
+    config.full_dataset_size = args.full_dataset_size
+
     # Set sweep flag if needed
     if args.sweep:
         config.is_sweep = True

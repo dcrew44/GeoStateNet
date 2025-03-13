@@ -5,6 +5,7 @@ seed: 42
 batch_size: 32
 num_workers: 2
 train_val_split: 0.8
+full_dataset_size: 1.0
 
 # Paths (these are overridden in Colab)
 # Paths
