@@ -124,14 +124,21 @@ class Experiment:
         train_transforms = get_train_transforms(size=(224, 224))
         val_transforms = get_val_transforms(size=(224, 224))
 
+        # Get the full dataset size from config, default to 1.0 if not present
+        full_dataset_size = getattr(self.config, 'fulldataset_size', 1.0)
+        print(f"Using {full_dataset_size * 100:.1f}% of the full dataset")
+
         # Create datasets
         train_set, val_set = create_train_val_datasets(
             dataset_root=self.config.dataset_root,
             train_transforms=train_transforms,
             val_transforms=val_transforms,
             train_val_split=self.config.train_val_split,
-            seed=self.config.seed
+            seed=self.config.seed,
+            full_dataset_size=full_dataset_size
         )
+
+        print(f"Created training set with {len(train_set)} samples and validation set with {len(val_set)} samples")
 
         # Create dataloaders
         train_loader = DataLoader(

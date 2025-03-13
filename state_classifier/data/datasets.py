@@ -109,6 +109,12 @@ class TransformSubset(torch.utils.data.Dataset):
         self.transform = transform
         self.dataset = subset.dataset if hasattr(subset, 'dataset') else subset
 
+        # Properly expose classes attribute from the original dataset
+        if hasattr(self.dataset, 'classes'):
+            self.classes = self.dataset.classes
+        elif hasattr(self.dataset, 'dataset') and hasattr(self.dataset.dataset, 'classes'):
+            self.classes = self.dataset.dataset.classes
+
     def __getitem__(self, idx):
         x, y = self.subset[idx]
         if self.transform:

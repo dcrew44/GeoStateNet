@@ -53,7 +53,9 @@ class Trainer:
 
         # Setup logging
         self.logger = WandbLogger(config)
-        self.class_names = self.val_loader.dataset.dataset.classes
+
+        # Get class names safely by traversing the dataset chain
+        self.class_names = self._get_class_names(val_loader.dataset)
         self.state_abbrev = get_state_index_to_abbrev()
 
         # Training state
@@ -63,6 +65,32 @@ class Trainer:
         # Register signal handler for graceful interruption
         signal.signal(signal.SIGINT, self.interrupt_handler)
 
+    def _get_class_names(self, dataset):
+        """
+        Safely extract class names from a dataset, handling wrapper cases.
+
+        Args:
+            dataset: A dataset object that might be wrapped
+
+        Returns:
+            list: Class names if found, or empty list
+        """
+        # Try to get classes directly
+        if hasattr(dataset, 'classes'):
+            return dataset.classes
+
+        # Try to get from dataset.dataset (for Subset)
+        if hasattr(dataset, 'dataset') and hasattr(dataset.dataset, 'classes'):
+            return dataset.dataset.classes
+
+        # Try to go deeper (for nested wrappers)
+        if hasattr(dataset, 'dataset') and hasattr(dataset.dataset, 'dataset') and hasattr(dataset.dataset.dataset,
+                                                                                           'classes'):
+            return dataset.dataset.dataset.classes
+
+        # If all else fails, return empty list and log warning
+        print("WARNING: Could not find class names in dataset. Using numeric indices instead.")
+        return []
     def _build_optimizer(self):
         """
         Build optimizer based on configuration.
