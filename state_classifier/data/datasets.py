@@ -107,6 +107,7 @@ class TransformSubset(torch.utils.data.Dataset):
     def __init__(self, subset, transform=None):
         self.subset = subset
         self.transform = transform
+        self.dataset = subset.dataset if hasattr(subset, 'dataset') else subset
 
     def __getitem__(self, idx):
         x, y = self.subset[idx]

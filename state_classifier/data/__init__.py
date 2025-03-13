@@ -1,6 +1,6 @@
 """Data handling components for the state classifier."""
 
-from .datasets import TestSet, create_train_val_datasets, create_test_dataset
+from .datasets import TestSet, create_train_val_datasets, create_test_dataset, TransformSubset, get_subset_dataset
 from .samplers import CombinedSampleBatchSampler
 from .transforms import (
     get_train_transforms,
@@ -14,6 +14,8 @@ __all__ = [
     "TestSet",
     "create_train_val_datasets",
     "create_test_dataset",
+    "TransformSubset",
+    "get_subset_dataset",
 
     # Samplers
     "CombinedSampleBatchSampler",
