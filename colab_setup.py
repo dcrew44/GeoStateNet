@@ -7,12 +7,11 @@ import sys
 from pathlib import Path
 import subprocess
 
-
 def setup_environment(
-        github_repo="dcrew44/geoguessrstateclassifier",
-        branch="main",
-        data_drive_path="/content/drive/MyDrive/50States10K",
-        mount_drive=True
+    github_repo="dcrew44/geoguessr-state-classifier",
+    branch="master",
+    data_drive_path="/content/drive/MyDrive/50States10K",
+    mount_drive=True
 ):
     """
     Set up the Colab environment for the state classifier.
@@ -61,7 +60,6 @@ def setup_environment(
 
     print(f"Setup complete! The codebase is available in /{repo_dir}/")
     return repo_path
-
 
 # This allows importing from the setup module but also running it directly
 if __name__ == "__main__":
