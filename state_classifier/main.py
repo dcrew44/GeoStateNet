@@ -53,6 +53,13 @@ def parse_args():
         help="Running as part of a W&B sweep"
     )
 
+    parser.add_argument(
+        "--train_size",
+        type=float,
+        default=1.0,
+        help="Training set size. Choose smaller values (0.2) for running experiments on smaller datasets."
+    )
+
     return parser.parse_args()
 
 
@@ -63,7 +70,7 @@ def main():
 
     # Load configuration
     config = load_config(args.config)
-
+    config.fulldataset_size = args.train_size
     # Set sweep flag if needed
     if args.sweep:
         config.is_sweep = True
