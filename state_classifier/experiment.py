@@ -125,7 +125,7 @@ class Experiment:
         val_transforms = get_val_transforms(size=(224, 224))
 
         # Get the full dataset size from config, default to 1.0 if not present
-        full_dataset_size = getattr(self.config, 'fulldataset_size', 1.0)
+        full_dataset_size = getattr(self.config, 'full_dataset_size', 1.0)
         print(f"Using {full_dataset_size * 100:.1f}% of the full dataset")
 
         # Create datasets
