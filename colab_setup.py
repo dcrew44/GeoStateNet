@@ -9,7 +9,7 @@ import subprocess
 
 
 def setup_environment(
-        github_repo="yourusername/state-classifier",
+        github_repo="dcrew44/geoguessrstateclassifier",
         branch="main",
         data_drive_path="/content/drive/MyDrive/50States10K",
         mount_drive=True
