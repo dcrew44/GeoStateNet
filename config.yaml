@@ -2,13 +2,12 @@
 
 # General settings
 seed: 42
-batch_size: 32
-num_workers: 2
+batch_size: 256
+num_workers: 8
 train_val_split: 0.8
 full_dataset_size: 1.0
 
 # Paths (these are overridden in Colab)
-# Paths
 dataset_root: "data/train"
 test_dataset_root: "data/test"
 checkpoints_dir: "checkpoints"
@@ -25,7 +24,7 @@ hyperparameters:
   # Phase 1: Head-only training
   num_epochs: 10
   lr: 0.001
-  weight_decay: 0.01
+  weight_decay: 0.001
   momentum: 0.9
   betas: [0.9, 0.999]
   optimizer: "AdamW"

@@ -332,8 +332,8 @@ class Trainer:
                 total += labels.size(0)
 
                 # Collect predictions and labels for confusion matrix
-                all_preds.extend(predicted.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
+                # all_preds.extend(predicted.cpu().numpy())
+                # all_labels.extend(labels.cpu().numpy())
 
         # Calculate epoch metrics
         epoch_loss = running_loss / total
@@ -347,22 +347,22 @@ class Trainer:
         self.logger.log_metrics(metrics, step=epoch)
 
         # Log confusion matrix and predictions table if needed
-        if should_log_cm:
-            self.logger.log_confusion_matrix(
-                y_true=all_labels,
-                y_pred=all_preds,
-                class_mapping=self.state_abbrev,
-                step=epoch,
-                title="Validation Confusion Matrix"
-            )
-
-            self.logger.log_predictions_table(
-                preds=all_preds,
-                labels=all_labels,
-                class_mapping=self.state_abbrev,
-                step=epoch,
-                table_name="Validation Predictions"
-            )
+        # if should_log_cm:
+        #     self.logger.log_confusion_matrix(
+        #         y_true=all_labels,
+        #         y_pred=all_preds,
+        #         class_mapping=self.state_abbrev,
+        #         step=epoch,
+        #         title="Validation Confusion Matrix"
+        #     )
+        #
+        #     self.logger.log_predictions_table(
+        #         preds=all_preds,
+        #         labels=all_labels,
+        #         class_mapping=self.state_abbrev,
+        #         step=epoch,
+        #         table_name="Validation Predictions"
+        #     )
 
         print(f"Val Loss: {epoch_loss:.4f}, Val Acc: {epoch_acc:.2f}%")
 

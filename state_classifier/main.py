@@ -91,7 +91,6 @@ def main():
     experiment = Experiment(config)
 
     # Load checkpoint if resuming
-    # Load checkpoint if resuming
     if args.resume:
         # If only the filename is provided, prepend the checkpoints directory
         if not os.path.isabs(args.resume) and not args.resume.startswith('./'):
