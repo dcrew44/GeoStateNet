@@ -134,8 +134,7 @@ class Experiment:
             train_transforms=train_transforms,
             val_transforms=val_transforms,
             train_val_split=self.config.train_val_split,
-            seed=self.config.seed,
-            full_dataset_size=full_dataset_size
+            seed=self.config.seed
         )
 
         print(f"Created training set with {len(train_set)} samples and validation set with {len(val_set)} samples")
