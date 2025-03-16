@@ -164,6 +164,7 @@ class Trainer:
             "scheduler_state": self.scheduler.state_dict(),
             "scaler_state": self.scaler.state_dict(),
             "val_loss": self.best_loss,
+            "parameters": self.config.hyperparameters.__dict__,
         }
 
         # Save to file

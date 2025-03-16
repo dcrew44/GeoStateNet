@@ -29,24 +29,57 @@ class TestSet(ImageFolder):
         return image, label, path
 
 
-
 def create_train_val_datasets(dataset_root, train_transforms, val_transforms, train_val_split=0.8, seed=42):
     """
-    Create train and validation datasets with proper transforms.
+    Create train and validation datasets with proper transforms,
+    ensuring that images from the same location stay together.
     """
     # Load full dataset without transforms first
     full_dataset = ImageFolder(root=dataset_root)
 
-    train_size = int(train_val_split * len(full_dataset))
-    val_size = len(full_dataset) - train_size
-    train_dataset, val_dataset = random_split(
-        full_dataset,
-        [train_size, val_size],
-        generator=torch.Generator().manual_seed(seed)
-    )
+    # Group sample indices by location ID
+    location_to_indices = {}
+    for idx, (path, _) in enumerate(full_dataset.samples):
+        filename = os.path.basename(path)
+        # "2007_5oyTy...._0.jpg" becomes "2007_5oyTy...."
+        location_id = "_".join(filename.split("_")[:-1])
 
+        if location_id not in location_to_indices:
+            location_to_indices[location_id] = []
+
+        location_to_indices[location_id].append(idx)
+
+    # Get list of all location IDs
+    location_ids = list(location_to_indices.keys())
+
+    # Set random seed for reproducibility
+    random.seed(seed)
+    random.shuffle(location_ids)
+
+    # Split locations into train and val
+    num_train_locations = int(len(location_ids) * train_val_split)
+    train_location_ids = location_ids[:num_train_locations]
+    val_location_ids = location_ids[num_train_locations:]
+
+    # Collect indices for train and val sets
+    train_indices = []
+    for loc_id in train_location_ids:
+        train_indices.extend(location_to_indices[loc_id])
+
+    val_indices = []
+    for loc_id in val_location_ids:
+        val_indices.extend(location_to_indices[loc_id])
+
+    # Create Subset datasets
+    train_dataset = Subset(full_dataset, train_indices)
+    val_dataset = Subset(full_dataset, val_indices)
+
+    # Set transforms
     train_dataset.dataset.transform = train_transforms
     val_dataset.dataset.transform = val_transforms
+
+    print(f"Train set: {len(train_indices)} images from {len(train_location_ids)} locations")
+    print(f"Val set: {len(val_indices)} images from {len(val_location_ids)} locations")
 
     return train_dataset, val_dataset
 
