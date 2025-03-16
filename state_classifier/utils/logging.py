@@ -57,6 +57,18 @@ class WandbLogger:
 
         wandb.log({title: wandb.Image(plt.gcf())}, step=step, commit=False)
         plt.close()
+    def log_accuracy_per_state(self, y_true, y_pred, class_mapping=None, step=None, title="Accuracy per state"):
+        """
+        Log a graph of accuracy per state.
+
+        Args:
+            y_true (array-like): Ground truth labels
+            y_pred (array-like): Predicted labels
+            class_mapping (dict, optional): Mapping from indices to class names
+            step (int, optional): Step or epoch number
+            title (str): Title for the confusion matrix
+        """
+
 
     def log_predictions_table(self, preds, labels, class_mapping=None, step=None, table_name="Predictions"):
         """
