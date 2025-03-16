@@ -76,7 +76,7 @@ def build_state_classifier(num_classes=50, pretrained=True):
 
 
 def unfreeze_model_layers(model, freeze_conv1=True, freeze_bn1=True, freeze_layer1=True,
-                          freeze_layer2=True, freeze_layer3=False, freeze_layer4=False):
+                          freeze_layer2=False, freeze_layer3=False, freeze_layer4=False):
     """
     Selectively unfreeze layers of a ResNet model for fine-tuning.
 
