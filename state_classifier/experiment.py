@@ -146,6 +146,7 @@ class Experiment:
             shuffle=True,
             num_workers=self.config.num_workers,
             pin_memory=True,
+            prefetch_factor=self.config.prefetch_factor,
             persistent_workers=True
         )
 
@@ -154,6 +155,7 @@ class Experiment:
             batch_size=self.config.batch_size,
             shuffle=False,
             num_workers=self.config.num_workers,
+            prefetch_factor=self.config.prefetch_factor,
             pin_memory=True
         )
 

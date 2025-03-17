@@ -6,6 +6,7 @@ batch_size: 256
 num_workers: 8
 train_val_split: 0.9
 full_dataset_size: 1.0
+prefetch_factor: 4
 
 # Paths (these are overridden in Colab)
 dataset_root: "data/train"

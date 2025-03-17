@@ -30,15 +30,8 @@ class AdaptiveConcatPool2d(nn.Module):
 
 def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0.5):
     """
-    Build a ResNet101 model for state classification with AdaptiveConcatPool2d.
-
-    Args:
-        num_classes (int): Number of states to classify
-        pretrained (bool): Whether to load pretrained weights
-        dropout_rate (float): Dropout probability
-
-    Returns:
-        nn.Module: State classifier model
+    Build a ResNet101 model for state classification with AdaptiveConcatPool2d
+    that preserves the original layer structure.
     """
     # Load pretrained model
     if pretrained:
@@ -50,32 +43,41 @@ def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0.5):
     for param in model.parameters():
         param.requires_grad = False
 
-    # Get the number of features from the last layer
+    # Get the number of features
     fc_in = model.fc.in_features  # typically 2048 for resnet101
 
-    # Replace the avgpool and fc layers with a custom head
-    # Important: We're replacing two layers here, not just the fc layer
-    model.avgpool = nn.Identity()  # Remove the original pooling
-    model.fc = nn.Sequential(
-        # Apply concat pooling (doubles the feature dimension)
-        AdaptiveConcatPool2d(output_size=1),  # Output: [batch, fc_in*2, 1, 1]
-        nn.Flatten(),  # Output: [batch, fc_in*2]
+    # Define a custom forward function that ensures proper data flow
+    def custom_forward(x, model):
+        # Pass x through the body (up to layer4)
+        x = model.conv1(x)
+        x = model.bn1(x)
+        x = model.relu(x)
+        x = model.maxpool(x)
+        x = model.layer1(x)
+        x = model.layer2(x)
+        x = model.layer3(x)
+        x = model.layer4(x)
+        # Do NOT flatten x here; pass the 4D tensor directly to the head
+        x = model.fc(x)
+        return x
 
-        # Batch normalization on the raw features
+    # Replace the classifier head
+    model.avgpool = nn.Identity()
+    model.fc = nn.Sequential(
+        # Fastai uses an AdaptiveConcatPool2d to combine max and avg pool outputs.
+        AdaptiveConcatPool2d(output_size=1),  # output shape: [batch, fc_in*2, 1, 1]
+        nn.Flatten(),  # flatten to shape: [batch, fc_in*2]
         nn.BatchNorm1d(fc_in * 2),
         nn.Dropout(dropout_rate),
-
-        # First hidden layer
         nn.Linear(fc_in * 2, 512),
         nn.ReLU(inplace=True),
-
-        # More regularization
         nn.BatchNorm1d(512),
         nn.Dropout(dropout_rate),
-
-        # Output layer
         nn.Linear(512, num_classes)
     )
+
+    # Override the forward method
+    model.forward = lambda x: custom_forward(x, model)
 
     return model
 

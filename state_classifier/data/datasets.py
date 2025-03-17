@@ -2,6 +2,7 @@
 import os
 import torch
 import numpy as np
+import random
 from torchvision.datasets import ImageFolder
 from torch.utils.data import Subset, random_split
 from sklearn.model_selection import train_test_split
