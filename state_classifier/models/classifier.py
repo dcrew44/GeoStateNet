@@ -26,34 +26,16 @@ class AdaptiveConcatPool2d(nn.Module):
         return torch.cat([self.mp(x), self.ap(x)], dim=1)
 
 
-def build_classifier_head(in_features, num_classes, dropout_rate=0.5):
+
+
+def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0.5):
     """
-    Build a classifier head for state classification.
-
-    Args:
-        in_features (int): Number of input features
-        num_classes (int): Number of output classes
-        dropout_rate (float): Dropout probability
-
-    Returns:
-        nn.Sequential: Classifier head
-    """
-    return nn.Sequential(
-        nn.Linear(in_features, 512),
-        nn.ReLU(inplace=True),
-        nn.BatchNorm1d(512),
-        nn.Dropout(dropout_rate),
-        nn.Linear(512, num_classes)
-    )
-
-
-def build_state_classifier(num_classes=50, pretrained=True):
-    """
-    Build a ResNet101 model for state classification.
+    Build a ResNet101 model for state classification with AdaptiveConcatPool2d.
 
     Args:
         num_classes (int): Number of states to classify
         pretrained (bool): Whether to load pretrained weights
+        dropout_rate (float): Dropout probability
 
     Returns:
         nn.Module: State classifier model
@@ -68,12 +50,34 @@ def build_state_classifier(num_classes=50, pretrained=True):
     for param in model.parameters():
         param.requires_grad = False
 
-    # Replace the classifier head
+    # Get the number of features from the last layer
     fc_in = model.fc.in_features  # typically 2048 for resnet101
-    model.fc = build_classifier_head(fc_in, num_classes)
+
+    # Replace the avgpool and fc layers with a custom head
+    # Important: We're replacing two layers here, not just the fc layer
+    model.avgpool = nn.Identity()  # Remove the original pooling
+    model.fc = nn.Sequential(
+        # Apply concat pooling (doubles the feature dimension)
+        AdaptiveConcatPool2d(output_size=1),  # Output: [batch, fc_in*2, 1, 1]
+        nn.Flatten(),  # Output: [batch, fc_in*2]
+
+        # Batch normalization on the raw features
+        nn.BatchNorm1d(fc_in * 2),
+        nn.Dropout(dropout_rate),
+
+        # First hidden layer
+        nn.Linear(fc_in * 2, 512),
+        nn.ReLU(inplace=True),
+
+        # More regularization
+        nn.BatchNorm1d(512),
+        nn.Dropout(dropout_rate),
+
+        # Output layer
+        nn.Linear(512, num_classes)
+    )
 
     return model
-
 
 def unfreeze_model_layers(model, freeze_conv1=True, freeze_bn1=True, freeze_layer1=True,
                           freeze_layer2=False, freeze_layer3=False, freeze_layer4=False):
