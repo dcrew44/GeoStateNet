@@ -28,7 +28,7 @@ class AdaptiveConcatPool2d(nn.Module):
 
 
 
-def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0):
+def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0.0):
     """
     Build a ResNet101 model for state classification with AdaptiveConcatPool2d
     that preserves the original layer structure.

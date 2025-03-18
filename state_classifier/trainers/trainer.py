@@ -91,35 +91,39 @@ class Trainer:
         # If all else fails, return empty list and log warning
         print("WARNING: Could not find class names in dataset. Using numeric indices instead.")
         return []
-    def _build_optimizer(self):
-        """
-        Build optimizer based on configuration.
 
-        Returns:
-            torch.optim.Optimizer: Configured optimizer
-        """
-        trainable_params = filter(lambda p: p.requires_grad, self.model.parameters())
+    def _build_optimizer(self, is_phase1=True):
+        """Build optimizer with separate param groups for all BatchNorm layers."""
+        # Split parameters
+        bn_params = []
+        non_bn_params = []
 
-        if self.config.hyperparameters.optimizer == "Adam":
-            return torch.optim.AdamW(
-                trainable_params,
-                lr=self.config.hyperparameters.lr,
-                weight_decay=self.config.hyperparameters.weight_decay,
-                betas=self.config.hyperparameters.betas,
-            )
-        elif self.config.hyperparameters.optimizer == "SGD":
-            return torch.optim.SGD(
-                trainable_params,
-                lr=self.config.hyperparameters.lr,
-                momentum=self.config.hyperparameters.momentum,
-                weight_decay=self.config.hyperparameters.weight_decay
-            )
-        else:
-            return torch.optim.AdamW(
-                trainable_params,
-                lr=self.config.hyperparameters.lr,
-                weight_decay=self.config.hyperparameters.weight_decay
-            )
+        for name, module in self.model.named_modules():
+            # Check if the module is a BatchNorm (of any dimension)
+            if isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
+                # Add all parameters in this BatchNorm to the bn_params group
+                for param_name, param in module.named_parameters(recurse=False):
+                    if param.requires_grad:
+                        bn_params.append(param)
+            # For non-BatchNorm modules with parameters
+            elif hasattr(module, 'weight') or hasattr(module, 'bias'):
+                # Add only direct parameters, not from children (to avoid duplicates)
+                for param_name, param in module.named_parameters(recurse=False):
+                    if param.requires_grad:
+                        # Add bias to bn_params (no weight decay)
+                        if 'bias' in param_name:
+                            bn_params.append(param)
+                        # All other params get weight decay
+                        else:
+                            non_bn_params.append(param)
+
+        # Create parameter groups with and without weight decay
+        param_groups = [
+            {'params': non_bn_params, 'weight_decay': (self.config.hyperparameters.weight_decay if is_phase1 else self.config.hyperparameters.finetune_weight_decay)},
+            {'params': bn_params, 'weight_decay': 0.0}
+        ]
+
+        return torch.optim.AdamW(param_groups, lr=(self.config.hyperparameters.lr if is_phase1 else self.config.hyperparameters.finetune_lr),)
 
     def _build_loss(self):
         """
@@ -426,20 +430,15 @@ class Trainer:
 
         # Update optimizer with new learning rate for fine-tuning
         finetune_lr = getattr(self.config.hyperparameters, "finetune_lr", 1e-4)
-        self.optimizer = torch.optim.AdamW(
-            filter(lambda p: p.requires_grad, self.model.parameters()),
-            lr=finetune_lr,
-            weight_decay=self.config.hyperparameters.finetune_weight_decay,
-            betas=(0.9, 0.999)
-        )
 
+        self.optimizer = self._build_optimizer(is_phase1=False)
         # Update scheduler for phase 2
         phase2_epochs = getattr(self.config.hyperparameters, "phase2_epochs", 5)
         self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer=self.optimizer,
             total_steps=len(self.train_loader) * phase2_epochs,
             max_lr=finetune_lr,
-            pct_start=0.3,
+            pct_start=0.25,
             div_factor=25,
             final_div_factor=100000,
         )
