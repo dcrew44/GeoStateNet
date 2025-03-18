@@ -141,9 +141,9 @@ class Trainer:
             optimizer=self.optimizer,
             max_lr=self.config.hyperparameters.lr,
             total_steps=len(self.train_loader) * self.config.hyperparameters.num_epochs,
-            pct_start=0.3,
+            pct_start=0.25,
             div_factor=25,
-            final_div_factor=1000,
+            final_div_factor=100000,
         )
 
     def save_checkpoint(self, epoch, is_best=False):
@@ -418,8 +418,8 @@ class Trainer:
             self.model,
             freeze_conv1=True,
             freeze_bn1=True,
-            freeze_layer1=True,
-            freeze_layer2=True,
+            freeze_layer1=False,
+            freeze_layer2=False,
             freeze_layer3=False,
             freeze_layer4=False
         )
@@ -441,7 +441,7 @@ class Trainer:
             max_lr=finetune_lr,
             pct_start=0.3,
             div_factor=25,
-            final_div_factor=1000,
+            final_div_factor=100000,
         )
 
         # Reset early stopping

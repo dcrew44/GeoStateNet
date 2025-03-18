@@ -28,7 +28,7 @@ class AdaptiveConcatPool2d(nn.Module):
 
 
 
-def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0.5):
+def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0):
     """
     Build a ResNet101 model for state classification with AdaptiveConcatPool2d
     that preserves the original layer structure.
@@ -67,13 +67,13 @@ def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0.5):
         # Fastai uses an AdaptiveConcatPool2d to combine max and avg pool outputs.
         AdaptiveConcatPool2d(output_size=1),  # output shape: [batch, fc_in*2, 1, 1]
         nn.Flatten(),  # flatten to shape: [batch, fc_in*2]
-        nn.BatchNorm1d(fc_in * 2),
+        nn.BatchNorm1d(fc_in * 2, ),
         nn.Dropout(dropout_rate),
-        nn.Linear(fc_in * 2, 512),
+        nn.Linear(fc_in * 2, 512, bias=False),
         nn.ReLU(inplace=True),
         nn.BatchNorm1d(512),
         nn.Dropout(dropout_rate),
-        nn.Linear(512, num_classes)
+        nn.Linear(512, num_classes, bias=False),
     )
 
     # Override the forward method

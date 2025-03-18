@@ -24,7 +24,7 @@ model_cfg:
 hyperparameters:
   # Phase 1: Head-only training
   num_epochs: 10
-  lr: 0.001
+  lr: 0.00017782794020604342
   weight_decay: 0.01
   momentum: 0.9
   betas: [0.9, 0.999]
@@ -32,7 +32,7 @@ hyperparameters:
 
   # Phase 2: Fine-tuning
   phase2_epochs: 5
-  finetune_lr: 0.0001
+  finetune_lr: 0.00010964782268274575
   finetune_weight_decay: 0.01
 
   # Early stopping
