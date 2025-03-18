@@ -123,7 +123,10 @@ class Trainer:
             {'params': bn_params, 'weight_decay': 0.0}
         ]
 
-        return torch.optim.AdamW(param_groups, lr=(self.config.hyperparameters.lr if is_phase1 else self.config.hyperparameters.finetune_lr),)
+        return torch.optim.Adam(
+            param_groups,
+            lr=(self.config.hyperparameters.lr if is_phase1 else self.config.hyperparameters.finetune_lr),
+            )
 
     def _build_loss(self):
         """
@@ -432,6 +435,7 @@ class Trainer:
         finetune_lr = getattr(self.config.hyperparameters, "finetune_lr", 1e-4)
 
         self.optimizer = self._build_optimizer(is_phase1=False)
+
         # Update scheduler for phase 2
         phase2_epochs = getattr(self.config.hyperparameters, "phase2_epochs", 5)
         self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
