@@ -57,6 +57,7 @@ class WandbLogger:
 
         wandb.log({title: wandb.Image(plt.gcf())}, step=step, commit=False)
         plt.close()
+
     def log_accuracy_per_state(self, y_true, y_pred, class_mapping=None, step=None, title="Accuracy per state"):
         """
         Log a graph of accuracy per state.

@@ -352,7 +352,8 @@ class Trainer:
             "val/loss": epoch_loss,
             "val/accuracy": epoch_acc
         }
-        self.logger.log_metrics(metrics, step=epoch)
+
+        self.logger.log_metrics(metrics, step=epoch, commit=True)
 
         # Log confusion matrix and predictions table if needed
         # if should_log_cm:
