@@ -13,7 +13,7 @@ from tqdm import tqdm
 from ..utils.callbacks import EarlyStopping
 from ..utils.constants import get_state_index_to_abbrev
 from ..utils.logging import WandbLogger
-from ..models.classifier import unfreeze_model_layers
+from ..models.classifier import unfreeze_model_layers, get_parameter_groups, unfreeze_bn
 
 
 class Trainer:
@@ -95,37 +95,15 @@ class Trainer:
     def _build_optimizer(self, is_phase1=True):
         """Build optimizer with separate param groups for all BatchNorm layers."""
         # Split parameters
-        bn_params = []
-        non_bn_params = []
-
-        for name, module in self.model.named_modules():
-            # Check if the module is a BatchNorm (of any dimension)
-            if isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
-                # Add all parameters in this BatchNorm to the bn_params group
-                for param_name, param in module.named_parameters(recurse=False):
-                    if param.requires_grad:
-                        bn_params.append(param)
-            # For non-BatchNorm modules with parameters
-            elif hasattr(module, 'weight') or hasattr(module, 'bias'):
-                # Add only direct parameters, not from children (to avoid duplicates)
-                for param_name, param in module.named_parameters(recurse=False):
-                    if param.requires_grad:
-                        # Add bias to bn_params (no weight decay)
-                        if 'bias' in param_name:
-                            bn_params.append(param)
-                        # All other params get weight decay
-                        else:
-                            non_bn_params.append(param)
 
         # Create parameter groups with and without weight decay
-        param_groups = [
-            {'params': non_bn_params, 'weight_decay': (self.config.hyperparameters.weight_decay if is_phase1 else self.config.hyperparameters.finetune_weight_decay)},
-            {'params': bn_params, 'weight_decay': 0.0}
-        ]
+        param_groups = get_parameter_groups(self.model)
 
         return torch.optim.Adam(
             param_groups,
             lr=(self.config.hyperparameters.lr if is_phase1 else self.config.hyperparameters.finetune_lr),
+            betas=(0.9, 0.99),
+            eps=1e-5
             )
 
     def _build_loss(self):
@@ -137,7 +115,7 @@ class Trainer:
         """
         return nn.CrossEntropyLoss()
 
-    def _build_scheduler(self):
+    def _build_scheduler(self, is_phase1=True):
         """
         Build learning rate scheduler.
 
@@ -146,11 +124,14 @@ class Trainer:
         """
         return torch.optim.lr_scheduler.OneCycleLR(
             optimizer=self.optimizer,
-            max_lr=self.config.hyperparameters.lr,
-            total_steps=len(self.train_loader) * self.config.hyperparameters.num_epochs,
+            max_lr=self.config.hyperparameters.lr if is_phase1 else self.config.hyperparameters.finetune_lr,
+            total_steps=len(self.train_loader) * (self.config.hyperparameters.num_epochs if is_phase1 else  getattr(self.config.hyperparameters, "phase2_epochs", 5)),
             pct_start=0.25,
             div_factor=25,
             final_div_factor=100000,
+            base_momentum=0.85,
+            max_momentum=0.95,
+            cycle_momentum=True
         )
 
     def save_checkpoint(self, epoch, is_best=False):
@@ -426,12 +407,13 @@ class Trainer:
             self.model,
             freeze_conv1=True,
             freeze_bn1=True,
-            freeze_layer1=False,
+            freeze_layer1=True,
             freeze_layer2=False,
             freeze_layer3=False,
             freeze_layer4=False
         )
 
+        unfreeze_bn(self.model)
         # Update optimizer with new learning rate for fine-tuning
         finetune_lr = getattr(self.config.hyperparameters, "finetune_lr", 1e-4)
 
@@ -439,14 +421,7 @@ class Trainer:
 
         # Update scheduler for phase 2
         phase2_epochs = getattr(self.config.hyperparameters, "phase2_epochs", 5)
-        self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer=self.optimizer,
-            total_steps=len(self.train_loader) * phase2_epochs,
-            max_lr=finetune_lr,
-            pct_start=0.25,
-            div_factor=25,
-            final_div_factor=100000,
-        )
+        self.scheduler = self._build_scheduler(is_phase1=False)
 
         # Reset early stopping
         self.early_stopping = EarlyStopping(

@@ -85,7 +85,6 @@ def create_train_val_datasets(dataset_root, train_transforms, val_transforms, tr
     return train_dataset, val_dataset
 
 
-
 def create_test_dataset(test_root, test_transforms):
     """
     Create test dataset with proper transforms.

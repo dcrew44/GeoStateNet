@@ -67,3 +67,5 @@ wandb/
 # Logs
 logs/
 *.log
+
+state_classifier/models/test.py

@@ -2,7 +2,8 @@
 import torch
 import torch.nn as nn
 from torchvision import models
-
+from itertools import chain
+from functools import partial
 
 class AdaptiveConcatPool2d(nn.Module):
     """
@@ -25,8 +26,84 @@ class AdaptiveConcatPool2d(nn.Module):
         """Forward pass."""
         return torch.cat([self.mp(x), self.ap(x)], dim=1)
 
+norm_types = (AdaptiveConcatPool2d, nn.BatchNorm2d, nn.BatchNorm1d, nn.BatchNorm3d)
+
+def trainable_params(m):
+    return filter(lambda p: p.requires_grad, m.parameters())
+
+def norm_bias_params(m, bias=True):
+    if isinstance(m, norm_types): return list(m.parameters())
+    res = list(chain.from_iterable(
+        norm_bias_params(child, bias=bias) for child in m.children()
+    ))
+    if bias and getattr(m, 'bias', None): res.extend(m.bias)
+    return res
+
+def bn_bias_state(model, bias=True):
+    return norm_bias_params(model, bias=bias)
+
+def get_parameter_groups(model, weight_decay=1e-2, train_bn=True):
+    # Get batch norm parameters (no weight decay)
+    bn_bias_params = norm_bias_params(model, bias=True)
+
+    bn_bias_params_ids = set(id(p) for p in bn_bias_params)
+
+    # Get all other parameters (with weight decay)
+    other_params = [p for p in model.parameters()
+                    if id(p) not in bn_bias_params_ids and p.requires_grad]
+
+    # Create parameter groups
+    param_groups = [
+        {'params': bn_bias_params, 'weight_decay': 0.0},
+        {'params': other_params, 'weight_decay': weight_decay}
+    ]
+
+    return param_groups
+
+def init_default(m, func=nn.init.kaiming_normal_):
+    "Initialize `m` weights with `func` and set `bias` to 0."
+    if func:
+        if hasattr(m, 'weight') and m.weight is not None:
+            func(m.weight)
+        if hasattr(m, 'bias') and m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    return m
+
+def cond_init(m, func):
+    "Apply `init_default` to `m` unless it's a batchnorm module"
+    if not isinstance(m, norm_types):
+        init_default(m, func)
+
+def apply_leaf(m, f):
+    "Apply `f` to children of `m`."
+    for l in m.children():
+        apply_leaf(l, f)
+    f(m)
+
+def apply_init(m, func=nn.init.kaiming_normal_):
+    "Initialize all non-batchnorm layers of `m` with `func`."
+    apply_leaf(m, partial(cond_init, func=func))
+
+def unfreeze_bn(model):
+    bn_params =  bn_bias_state(model, bias=False)
+    for p in bn_params:
+        p.requires_grad = True
 
 
+def build_head():
+    head = nn.Sequential(
+        # Fastai uses an AdaptiveConcatPool2d to combine max and avg pool outputs.
+        AdaptiveConcatPool2d(output_size=1),  # output shape: [batch, fc_in*2, 1, 1]
+        nn.Flatten(),  # flatten to shape: [batch, fc_in*2]
+        nn.BatchNorm1d(4096, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True),
+        nn.Dropout(0.25),
+        nn.Linear(4096, 512, bias=False),
+        nn.ReLU(inplace=True),
+        nn.BatchNorm1d(512, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True),
+        nn.Dropout(0.5),
+        nn.Linear(512, 50, bias=False),
+    )
+    return head
 
 def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0.0):
     """
@@ -63,19 +140,11 @@ def build_state_classifier(num_classes=50, pretrained=True, dropout_rate=0.0):
 
     # Replace the classifier head
     model.avgpool = nn.Identity()
-    model.fc = nn.Sequential(
-        # Fastai uses an AdaptiveConcatPool2d to combine max and avg pool outputs.
-        AdaptiveConcatPool2d(output_size=1),  # output shape: [batch, fc_in*2, 1, 1]
-        nn.Flatten(),  # flatten to shape: [batch, fc_in*2]
-        nn.BatchNorm1d(fc_in * 2, ),
-        nn.Dropout(dropout_rate),
-        nn.Linear(fc_in * 2, 512, bias=False),
-        nn.ReLU(inplace=True),
-        nn.BatchNorm1d(512),
-        nn.Dropout(dropout_rate),
-        nn.Linear(512, num_classes, bias=False),
-    )
+    model.fc = build_head()
 
+    unfreeze_bn(model)
+
+    apply_init(model.fc)
     # Override the forward method
     model.forward = lambda x: custom_forward(x, model)
 
@@ -104,9 +173,9 @@ def unfreeze_model_layers(model, freeze_conv1=True, freeze_bn1=True, freeze_laye
         for param in model.conv1.parameters():
             param.requires_grad = False
 
-    if freeze_bn1:
-        for param in model.bn1.parameters():
-            param.requires_grad = False
+    # if freeze_bn1:
+    #     for param in model.bn1.parameters():
+    #         param.requires_grad = False
 
     for param in model.maxpool.parameters():
         param.requires_grad = False
