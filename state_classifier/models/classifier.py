@@ -44,7 +44,7 @@ def bn_bias_state(model, bias=True):
 
 def get_parameter_groups(model, weight_decay=1e-2, train_bn=True):
     # Get batch norm parameters (no weight decay)
-    bn_bias_params = norm_bias_params(model, bias=True)
+    bn_bias_params = [p for p in norm_bias_params(model, bias=True) if p.requires_grad]
 
     bn_bias_params_ids = set(id(p) for p in bn_bias_params)
 

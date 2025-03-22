@@ -79,9 +79,6 @@ def create_train_val_datasets(dataset_root, train_transforms, val_transforms, tr
     train_dataset.dataset.transform = train_transforms
     val_dataset.dataset.transform = val_transforms
 
-    print(f"Train set: {len(train_indices)} images from {len(train_location_ids)} locations")
-    print(f"Val set: {len(val_indices)} images from {len(val_location_ids)} locations")
-
     return train_dataset, val_dataset
 
 

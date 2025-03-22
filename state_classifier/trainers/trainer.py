@@ -407,7 +407,7 @@ class Trainer:
             self.model,
             freeze_conv1=True,
             freeze_bn1=True,
-            freeze_layer1=True,
+            freeze_layer1=False,
             freeze_layer2=False,
             freeze_layer3=False,
             freeze_layer4=False
