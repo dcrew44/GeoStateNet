@@ -358,7 +358,7 @@ class Trainer:
 
         return epoch_loss
 
-    def train(self):
+    def train(self, phase="head"):
         """
         Full training process with two phases:
         1. Train only the classifier head
@@ -367,37 +367,41 @@ class Trainer:
         # Move model to device
         self.model.to(self.device)
 
-        # === Phase 1: Head-only Training ===
-        print("=== Phase 1: Head-only Training ===")
-        phase1_epochs = getattr(self.config.hyperparameters, "num_epochs", 10)
-        self.current_epoch = 0
-        best_loss_phase1 = float("inf")
+        if phase == "head":
+            # === Phase 1: Head-only Training ===
+            print("=== Phase 1: Head-only Training ===")
+            phase1_epochs = getattr(self.config.hyperparameters, "num_epochs", 10)
+            self.current_epoch = 0
+            best_loss_phase1 = float("inf")
 
-        for epoch in range(phase1_epochs):
-            self.current_epoch = epoch
-            self.train_one_epoch(epoch)
-            val_loss = self.validate_one_epoch(epoch)
+            for epoch in range(phase1_epochs):
+                self.current_epoch = epoch
+                self.train_one_epoch(epoch)
+                val_loss = self.validate_one_epoch(epoch)
 
-            # Save checkpoint if this is the best model so far
-            if val_loss < best_loss_phase1:
-                best_loss_phase1 = val_loss
-                self.best_loss = val_loss
-                self.save_checkpoint(epoch, is_best=True)
+                # Save checkpoint if this is the best model so far
+                if val_loss < best_loss_phase1:
+                    best_loss_phase1 = val_loss
+                    self.best_loss = val_loss
+                    self.save_checkpoint(epoch, is_best=True)
 
-                # Save a phase-specific checkpoint
-                phase1_path = os.path.join(self.config.checkpoints_dir, "best_phase1.pth")
-                torch.save(self.model.state_dict(), phase1_path)
+                    # Save a phase-specific checkpoint
+                    phase1_path = os.path.join(self.config.checkpoints_dir, "best_phase1.pth")
+                    torch.save(self.model.state_dict(), phase1_path)
 
-            # Check for early stopping
-            if self.early_stopping(val_loss):
-                print("Early stopping triggered in phase 1")
-                break
+                # Check for early stopping
+                if self.early_stopping(val_loss):
+                    print("Early stopping triggered in phase 1")
+                    break
 
-        # Load best model from phase 1
-        phase1_path = os.path.join(self.config.checkpoints_dir, "best_phase1.pth")
-        if os.path.exists(phase1_path):
-            self.model.load_state_dict(torch.load(phase1_path))
-            print("Loaded best Phase 1 weights.")
+            # Load best model from phase 1
+            phase1_path = os.path.join(self.config.checkpoints_dir, "best_phase1.pth")
+            if os.path.exists(phase1_path):
+                self.model.load_state_dict(torch.load(phase1_path))
+                print("Loaded best Phase 1 weights.")
+        else:
+            phase1_epochs = 0
+            best_loss_phase1 = float("inf")
 
         # === Phase 2: Fine-tuning Selected Layers ===
         print("=== Phase 2: Fine-tuning Selected Layers ===")
@@ -429,6 +433,8 @@ class Trainer:
             delta=self.config.hyperparameters.early_stopping_delta
         )
 
+        if wandb:
+            wandb.watch(self.model, log="all", log_freq=1000)
         # Train for phase 2
         best_loss_phase2 = float("inf")
         for epoch in range(phase2_epochs):

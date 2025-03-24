@@ -173,9 +173,9 @@ def unfreeze_model_layers(model, freeze_conv1=True, freeze_bn1=True, freeze_laye
         for param in model.conv1.parameters():
             param.requires_grad = False
 
-    # if freeze_bn1:
-    #     for param in model.bn1.parameters():
-    #         param.requires_grad = False
+    if freeze_bn1:
+        for param in model.bn1.parameters():
+            param.requires_grad = False
 
     for param in model.maxpool.parameters():
         param.requires_grad = False

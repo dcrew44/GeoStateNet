@@ -65,7 +65,7 @@ class Experiment:
             project=self.config.wandb.project,
             config=self._get_config_dict()
         )
-        wandb.watch(self.model)
+        wandb.watch(self.model, log="all", log_freq=1000)
 
         # Train model
         self.trainer.train()
