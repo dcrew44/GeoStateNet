@@ -403,9 +403,9 @@ class Trainer:
 
         self.current_epoch = 0
 
-        if self.config.start_phase == 1:
+        if self.config.train_phases.start_phase == 1:
             phase1_epochs = getattr(self.config.hyperparameters, "phase1_epochs", 10)
-            phase1_lr = getattr(self.config.hyperparameters, "phase2_epochs", 1e-3)
+            phase1_lr = getattr(self.config.hyperparameters, "phase1_lr", 1e-3)
 
             self.optimizer = self._build_optimizer(lr=phase1_lr)
             self.scheduler = self._build_scheduler(lr=phase1_lr, epochs=phase1_epochs)
@@ -417,11 +417,11 @@ class Trainer:
 
             if wandb:
                 wandb.watch(self.model, log="all", log_freq=1000)
-            self.train_phase(phase1_epochs, start_step=start_step, phase_epochs=phase1_epochs)
+            self.train_phase(phase=1, start_step=start_step, phase_epochs=phase1_epochs)
 
         start_step = self.current_epoch
 
-        if self.config.start_phase == 2 or self.config.train_phases.phase_2:
+        if self.config.train_phases.start_phase == 2 or self.config.train_phases.phase_2:
             phase2_epochs = getattr(self.config.hyperparameters, "phase2_epochs", 5)
             phase2_lr = getattr(self.config.hyperparameters, "phase2_lr", 1e-3)
 
@@ -444,10 +444,10 @@ class Trainer:
 
             if wandb:
                 wandb.watch(self.model, log="all", log_freq=1000)
-            self.train_phase(phase2_epochs, start_step=start_step, phase_epochs=phase2_epochs)
+            self.train_phase(phase=2, start_step=start_step, phase_epochs=phase2_epochs)
         start_step = self.current_epoch
 
-        if self.config.start_phase == 3 or self.config.train_phases.phase_3:
+        if self.config.train_phases.start_phase == 3 or self.config.train_phases.phase_3:
             phase3_epochs = getattr(self.config.hyperparameters, "phase3_epochs", 5)
             phase3_lr = getattr(self.config.hyperparameters, "phase3_lr", 1e-3)
 
@@ -470,7 +470,7 @@ class Trainer:
 
             if wandb:
                 wandb.watch(self.model, log="all", log_freq=1000)
-            self.train_phase(phase3_epochs, start_step=start_step, phase_epochs=phase3_epochs)
+            self.train_phase(phase=3, start_step=start_step, phase_epochs=phase3_epochs)
         self.log_final_best_artifact()
 
     def log_final_best_artifact(self):
