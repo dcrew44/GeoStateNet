@@ -44,7 +44,6 @@ class Trainer:
         self.loss_fn = self._build_loss()
         self.scheduler = self._build_scheduler()
         self.scaler = GradScaler(device=self.device)
-
         # Setup monitoring
         self.early_stopping = EarlyStopping(
             patience=config.hyperparameters.patience,
@@ -92,18 +91,16 @@ class Trainer:
         print("WARNING: Could not find class names in dataset. Using numeric indices instead.")
         return []
 
-    def _build_optimizer(self, is_phase1=True):
+    def _build_optimizer(self, lr=0.001, betas=(0.9, 0.99), eps=1e-5):
         """Build optimizer with separate param groups for all BatchNorm layers."""
-        # Split parameters
-
         # Create parameter groups with and without weight decay
         param_groups = get_parameter_groups(self.model)
 
         return torch.optim.Adam(
             param_groups,
-            lr=(self.config.hyperparameters.lr if is_phase1 else self.config.hyperparameters.finetune_lr),
-            betas=(0.9, 0.99),
-            eps=1e-5
+            lr=lr,
+            betas=betas,
+            eps=eps
             )
 
     def _build_loss(self):
@@ -115,7 +112,7 @@ class Trainer:
         """
         return nn.CrossEntropyLoss()
 
-    def _build_scheduler(self, is_phase1=True):
+    def _build_scheduler(self, lr=0.001, betas=(0.85, 0.95), epochs=10):
         """
         Build learning rate scheduler.
 
@@ -124,13 +121,13 @@ class Trainer:
         """
         return torch.optim.lr_scheduler.OneCycleLR(
             optimizer=self.optimizer,
-            max_lr=self.config.hyperparameters.lr if is_phase1 else self.config.hyperparameters.finetune_lr,
-            total_steps=len(self.train_loader) * (self.config.hyperparameters.num_epochs if is_phase1 else  getattr(self.config.hyperparameters, "phase2_epochs", 5)),
+            max_lr=lr,
+            total_steps=len(self.train_loader) * epochs,
             pct_start=0.25,
             div_factor=25,
             final_div_factor=100000,
-            base_momentum=0.85,
-            max_momentum=0.95,
+            base_momentum=betas[0],
+            max_momentum=betas[1],
             cycle_momentum=True
         )
 
@@ -358,7 +355,42 @@ class Trainer:
 
         return epoch_loss
 
-    def train(self, phase="head"):
+    def train_phase(self, phase=1, start_step=0, phase_epochs=10):
+        self.model.to(self.device)
+
+        print(f"=== Phase {phase} ===")
+        self.current_epoch = start_step
+        best_loss = float("inf")
+
+        for epoch in range(start_step, phase_epochs):
+            self.current_epoch = epoch
+            self.train_one_epoch(epoch)
+            val_loss = self.validate_one_epoch(epoch)
+
+            # Save checkpoint if this is the best model so far
+            if val_loss < best_loss:
+                best_loss = val_loss
+                self.best_loss = val_loss
+                self.save_checkpoint(epoch, is_best=True)
+
+                # Save a phase-specific checkpoint
+                phase_path = os.path.join(self.config.checkpoints_dir, f"best_phase{phase}.pth")
+                torch.save(self.model.state_dict(), phase_path)
+
+            # Check for early stopping
+            if self.early_stopping(val_loss):
+                print(f"Early stopping triggered in phase {phase}")
+                break
+
+        # Load best model from phase
+        phase_path = os.path.join(self.config.checkpoints_dir, f"best_phase{phase}.pth")
+        if os.path.exists(phase_path):
+            self.model.load_state_dict(torch.load(phase_path))
+            print(f"Loaded best Phase {phase} weights.")
+
+
+
+    def train(self):
         """
         Full training process with two phases:
         1. Train only the classifier head
@@ -367,105 +399,78 @@ class Trainer:
         # Move model to device
         self.model.to(self.device)
 
-        if phase == "head":
-            # === Phase 1: Head-only Training ===
-            print("=== Phase 1: Head-only Training ===")
-            phase1_epochs = getattr(self.config.hyperparameters, "num_epochs", 10)
-            self.current_epoch = 0
-            best_loss_phase1 = float("inf")
+        start_step = getattr(self.config, "start_step", 0)
 
-            for epoch in range(phase1_epochs):
-                self.current_epoch = epoch
-                self.train_one_epoch(epoch)
-                val_loss = self.validate_one_epoch(epoch)
+        self.current_epoch = 0
 
-                # Save checkpoint if this is the best model so far
-                if val_loss < best_loss_phase1:
-                    best_loss_phase1 = val_loss
-                    self.best_loss = val_loss
-                    self.save_checkpoint(epoch, is_best=True)
+        if self.config.start_phase == 1:
+            phase1_epochs = getattr(self.config.hyperparameters, "phase1_epochs", 10)
+            phase1_lr = getattr(self.config.hyperparameters, "phase2_epochs", 1e-3)
 
-                    # Save a phase-specific checkpoint
-                    phase1_path = os.path.join(self.config.checkpoints_dir, "best_phase1.pth")
-                    torch.save(self.model.state_dict(), phase1_path)
+            self.optimizer = self._build_optimizer(lr=phase1_lr)
+            self.scheduler = self._build_scheduler(lr=phase1_lr, epochs=phase1_epochs)
+            self.scaler = GradScaler(device=self.device)
+            self.early_stopping = EarlyStopping(
+                patience=self.config.hyperparameters.patience,
+                delta=self.config.hyperparameters.early_stopping_delta
+            )
 
-                # Check for early stopping
-                if self.early_stopping(val_loss):
-                    print("Early stopping triggered in phase 1")
-                    break
+            if wandb:
+                wandb.watch(self.model, log="all", log_freq=1000)
+            self.train_phase(phase1_epochs, start_step=start_step, phase_epochs=phase1_epochs)
 
-            # Load best model from phase 1
-            phase1_path = os.path.join(self.config.checkpoints_dir, "best_phase1.pth")
-            if os.path.exists(phase1_path):
-                self.model.load_state_dict(torch.load(phase1_path))
-                print("Loaded best Phase 1 weights.")
-        else:
-            phase1_epochs = 0
-            best_loss_phase1 = float("inf")
+        start_step = self.current_epoch
 
-        # === Phase 2: Fine-tuning Selected Layers ===
-        print("=== Phase 2: Fine-tuning Selected Layers ===")
+        if self.config.start_phase == 2 or self.config.train_phases.phase_2:
+            phase2_epochs = getattr(self.config.hyperparameters, "phase2_epochs", 5)
+            phase2_lr = getattr(self.config.hyperparameters, "phase2_lr", 1e-3)
 
-        # Unfreeze selected layers
-        unfreeze_model_layers(
-            self.model,
-            freeze_conv1=True,
-            freeze_bn1=True,
-            freeze_layer1=False,
-            freeze_layer2=False,
-            freeze_layer3=False,
-            freeze_layer4=False
-        )
+            unfreeze_model_layers(
+                self.model,
+                freeze_conv1=True,
+                freeze_bn1=True,
+                freeze_layer1=True,
+                freeze_layer2=True,
+                freeze_layer3=True,
+                freeze_layer4=False
+            )
+            self.optimizer = self._build_optimizer(phase2_lr)
+            self.scheduler = self._build_scheduler(lr=phase2_lr, epochs=phase2_epochs)
+            self.scaler = GradScaler(device=self.device)
+            self.early_stopping = EarlyStopping(
+                patience=self.config.hyperparameters.patience,
+                delta=self.config.hyperparameters.early_stopping_delta
+            )
 
-        unfreeze_bn(self.model)
-        # Update optimizer with new learning rate for fine-tuning
-        finetune_lr = getattr(self.config.hyperparameters, "finetune_lr", 1e-4)
+            if wandb:
+                wandb.watch(self.model, log="all", log_freq=1000)
+            self.train_phase(phase2_epochs, start_step=start_step, phase_epochs=phase2_epochs)
+        start_step = self.current_epoch
 
-        self.optimizer = self._build_optimizer(is_phase1=False)
+        if self.config.start_phase == 3 or self.config.train_phases.phase_3:
+            phase3_epochs = getattr(self.config.hyperparameters, "phase3_epochs", 5)
+            phase3_lr = getattr(self.config.hyperparameters, "phase3_lr", 1e-3)
 
-        # Update scheduler for phase 2
-        phase2_epochs = getattr(self.config.hyperparameters, "phase2_epochs", 5)
-        self.scheduler = self._build_scheduler(is_phase1=False)
+            unfreeze_model_layers(
+                self.model,
+                freeze_conv1=True,
+                freeze_bn1=True,
+                freeze_layer1=True,
+                freeze_layer2=False,
+                freeze_layer3=False,
+                freeze_layer4=False
+            )
+            self.optimizer = self._build_optimizer(phase3_lr)
+            self.scheduler = self._build_scheduler(lr=phase3_lr, epochs=phase3_epochs)
+            self.scaler = GradScaler(device=self.device)
+            self.early_stopping = EarlyStopping(
+                patience=self.config.hyperparameters.patience,
+                delta=self.config.hyperparameters.early_stopping_delta
+            )
 
-        # Reset early stopping
-        self.early_stopping = EarlyStopping(
-            patience=self.config.hyperparameters.patience,
-            delta=self.config.hyperparameters.early_stopping_delta
-        )
-
-        if wandb:
-            wandb.watch(self.model, log="all", log_freq=1000)
-        # Train for phase 2
-        best_loss_phase2 = float("inf")
-        for epoch in range(phase2_epochs):
-            phase2_epoch = epoch + phase1_epochs
-            self.current_epoch = phase2_epoch
-
-            self.train_one_epoch(phase2_epoch)
-            val_loss = self.validate_one_epoch(phase2_epoch)
-
-            # Save checkpoint if this is the best model so far
-            if val_loss < best_loss_phase2:
-                best_loss_phase2 = val_loss
-                self.best_loss = val_loss
-                self.save_checkpoint(phase2_epoch, is_best=True)
-
-                # Save a phase-specific checkpoint
-                phase2_path = os.path.join(self.config.checkpoints_dir, "best_phase2.pth")
-                torch.save(self.model.state_dict(), phase2_path)
-
-            # Check for early stopping
-            if self.early_stopping(val_loss):
-                print("Early stopping triggered in phase 2")
-                break
-
-        # Load best model from phase 2 (or keep phase 1 if phase 2 didn't improve)
-        phase2_path = os.path.join(self.config.checkpoints_dir, "best_phase2.pth")
-        if os.path.exists(phase2_path) and best_loss_phase2 < best_loss_phase1:
-            self.model.load_state_dict(torch.load(phase2_path))
-            print("Loaded best Phase 2 weights.")
-
-        # Log final best model as artifact
+            if wandb:
+                wandb.watch(self.model, log="all", log_freq=1000)
+            self.train_phase(phase3_epochs, start_step=start_step, phase_epochs=phase3_epochs)
         self.log_final_best_artifact()
 
     def log_final_best_artifact(self):

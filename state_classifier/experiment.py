@@ -77,6 +77,9 @@ class Experiment:
         # Finish logging
         wandb.finish()
 
+    def resume(self, resume_path):
+        pass
+
     def train(self):
         """Run only the training part of the experiment."""
         self.trainer.train()
