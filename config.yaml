@@ -29,15 +29,15 @@ hyperparameters:
   optimizer: "Adam"
 
   phase1_epochs: 10
-  phase1_lr: 0.002
+  phase1_lr: 0.001
 
 
   # Phase 2: Fine-tuning
   phase2_epochs: 5
-  phase2_lr: 0.0005
+  phase2_lr: 0.001
 
   phase3_epochs: 3
-  phase3_lr: 0.00005
+  phase3_lr: 0.001
 
   # Early stopping
   patience: 3
@@ -47,7 +47,7 @@ train_phases:
   start_phase: 1
   phase1: True
   phase2: True
-  phase3: False
+  phase3: True
 # Wandb settings
 wandb:
   project: "state-classifier"

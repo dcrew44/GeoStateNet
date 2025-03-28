@@ -94,11 +94,11 @@ class Trainer:
     def _build_optimizer(self, lr=0.001, betas=(0.9, 0.99), eps=1e-5):
         """Build optimizer with separate param groups for all BatchNorm layers."""
         # Create parameter groups with and without weight decay
-        param_groups = get_parameter_groups(self.model)
+        param_groups = get_parameter_groups(self.model, base_lr=lr)
+        param_groups.reverse()
 
         return torch.optim.Adam(
             param_groups,
-            lr=lr,
             betas=betas,
             eps=eps
             )
@@ -112,7 +112,7 @@ class Trainer:
         """
         return nn.CrossEntropyLoss()
 
-    def _build_scheduler(self, lr=0.001, betas=(0.85, 0.95), epochs=10):
+    def _build_scheduler(self, lr=0.01, betas=(0.85, 0.95), epochs=10):
         """
         Build learning rate scheduler.
 
@@ -362,7 +362,7 @@ class Trainer:
         self.current_epoch = start_step
         best_loss = float("inf")
 
-        for epoch in range(start_step, phase_epochs):
+        for epoch in range(start_step, start_step + phase_epochs):
             self.current_epoch = epoch
             self.train_one_epoch(epoch)
             val_loss = self.validate_one_epoch(epoch)
@@ -420,8 +420,7 @@ class Trainer:
             self.train_phase(phase=1, start_step=start_step, phase_epochs=phase1_epochs)
 
         start_step = self.current_epoch
-
-        if self.config.train_phases.start_phase == 2 or self.config.train_phases.phase_2:
+        if self.config.train_phases.start_phase == 2 or self.config.train_phases.phase2:
             phase2_epochs = getattr(self.config.hyperparameters, "phase2_epochs", 5)
             phase2_lr = getattr(self.config.hyperparameters, "phase2_lr", 1e-3)
 
@@ -447,7 +446,7 @@ class Trainer:
             self.train_phase(phase=2, start_step=start_step, phase_epochs=phase2_epochs)
         start_step = self.current_epoch
 
-        if self.config.train_phases.start_phase == 3 or self.config.train_phases.phase_3:
+        if self.config.train_phases.start_phase == 3 or self.config.train_phases.phase3:
             phase3_epochs = getattr(self.config.hyperparameters, "phase3_epochs", 5)
             phase3_lr = getattr(self.config.hyperparameters, "phase3_lr", 1e-3)
 

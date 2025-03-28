@@ -4,7 +4,7 @@ import torch.nn as nn
 from torchvision import models
 from itertools import chain
 from functools import partial
-
+from collections.abc import Iterable
 class AdaptiveConcatPool2d(nn.Module):
     """
     Applies both adaptive max pooling and adaptive average pooling, then concatenates them.
@@ -32,33 +32,60 @@ def trainable_params(m):
     return filter(lambda p: p.requires_grad, m.parameters())
 
 def norm_bias_params(m, bias=True):
+
     if isinstance(m, norm_types): return list(m.parameters())
-    res = list(chain.from_iterable(
-        norm_bias_params(child, bias=bias) for child in m.children()
-    ))
-    if bias and getattr(m, 'bias', None): res.extend(m.bias)
-    return res
+    res = []
+    if isinstance(m, nn.Module) and hasattr(m, 'childern'):
+        res = list(chain.from_iterable(
+            norm_bias_params(child, bias=bias) for child in m.children()
+        ))
+        if bias and getattr(m, 'bias', None):
+            res.extend(m.bias)
+    elif isinstance(m, Iterable) and not isinstance(m, nn.Module):
+        res = list(chain.from_iterable(norm_bias_params(item, bias=bias) for item in m))
 
-def bn_bias_state(model, bias=True):
-    return norm_bias_params(model, bias=bias)
+    elif isinstance(m, nn.Module) and not isinstance(m, norm_types) and bias and getattr(m, 'bias', None) is not None and m.bias.requires_grad:
+        res.extend([m.bias])
 
-def get_parameter_groups(model, weight_decay=1e-2, train_bn=True):
+    return list(dict.fromkeys(res).keys())
+
+def bn_bias_state(m, bias=True):
+
+    return norm_bias_params(m, bias=bias)
+
+def get_parameter_groups(model, weight_decay=1e-2, base_lr=1e-3):
     # Get batch norm parameters (no weight decay)
-    bn_bias_params = [p for p in norm_bias_params(model, bias=True) if p.requires_grad]
+    group1_layers = [model.conv1, model.bn1, model.relu, model.maxpool, model.layer1, model.layer2]
+    group2_layers = [model.layer3]
+    group3_layers = [model.layer4]
+    group4_layers = [model.fc]
 
-    bn_bias_params_ids = set(id(p) for p in bn_bias_params)
+    group_lrs = [base_lr / 100, base_lr / 10, base_lr, base_lr * 10]
 
-    # Get all other parameters (with weight decay)
-    other_params = [p for p in model.parameters()
-                    if id(p) not in bn_bias_params_ids and p.requires_grad]
+    all_param_groups = []
+    all_processed_param_ids = set()
 
-    # Create parameter groups
-    param_groups = [
-        {'params': bn_bias_params, 'weight_decay': 0.0},
-        {'params': other_params, 'weight_decay': weight_decay}
-    ]
+    for i, part_layers in enumerate([group1_layers, group2_layers, group3_layers, group4_layers]):
+        group_lr = group_lrs[i]
+        part_params = list(chain.from_iterable(m.parameters() for m in part_layers if isinstance(m,nn.Module)))
 
-    return param_groups
+        part_bn_bias_params = [p for p in norm_bias_params(part_layers) if p.requires_grad and id(p) not in all_processed_param_ids]
+        part_bn_bias_ids = set(id(p) for p in part_bn_bias_params)
+
+        part_other_params = [p for p in part_params if p.requires_grad and id(p) not in all_processed_param_ids]
+
+        if part_bn_bias_params:
+            all_param_groups.append({'params': part_bn_bias_params, 'lr': group_lr, 'weight_decay': 0.0})
+            all_processed_param_ids.update(part_bn_bias_ids)
+        if part_other_params:
+            all_param_groups.append({'params': part_other_params, 'lr': group_lr, 'weight_decay': 0.0})
+            all_processed_param_ids.update(id(p) for p in part_other_params)
+
+    total_model_params = set(id(p) for p in model.parameters() if p.requires_grad)
+    if total_model_params != all_processed_param_ids:
+        print("Warning: Some model parameters might not be included in the optimizer groups!")
+
+    return all_param_groups
 
 def init_default(m, func=nn.init.kaiming_normal_):
     "Initialize `m` weights with `func` and set `bias` to 0."
@@ -173,6 +200,9 @@ def unfreeze_model_layers(model, freeze_conv1=True, freeze_bn1=True, freeze_laye
         for param in model.conv1.parameters():
             param.requires_grad = False
 
+    if freeze_bn1:
+        for param in model.bn1.parameters():
+            param.requires_grad = False
 
     for param in model.maxpool.parameters():
         param.requires_grad = False
@@ -198,8 +228,5 @@ def unfreeze_model_layers(model, freeze_conv1=True, freeze_bn1=True, freeze_laye
     # Always ensure the head is trainable
     for param in model.fc.parameters():
         param.requires_grad = True
-
-    for param in model.bn1.parameters():
-        param.requires_grad = False
 
     return model
