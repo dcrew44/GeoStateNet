@@ -34,10 +34,10 @@ hyperparameters:
 
   # Phase 2: Fine-tuning
   phase2_epochs: 5
-  phase2_lr: 0.001
+  phase2_lr: 0.0005
 
   phase3_epochs: 3
-  phase3_lr: 0.001
+  phase3_lr: 0.00025
 
   # Early stopping
   patience: 3
