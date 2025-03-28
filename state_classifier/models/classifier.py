@@ -35,7 +35,7 @@ def norm_bias_params(m, bias=True):
 
     if isinstance(m, norm_types): return list(m.parameters())
     res = []
-    if isinstance(m, nn.Module) and hasattr(m, 'childern'):
+    if isinstance(m, nn.Module) and hasattr(m, 'children'):
         res = list(chain.from_iterable(
             norm_bias_params(child, bias=bias) for child in m.children()
         ))
@@ -52,6 +52,19 @@ def norm_bias_params(m, bias=True):
 def bn_bias_state(m, bias=True):
 
     return norm_bias_params(m, bias=bias)
+def get_recursive_params(modules_list):
+    params = []
+    for module in modules_list:
+        if isinstance(module, nn.Module): # Ensure it's a module
+           params.extend(list(module.parameters(recurse=True)))
+    # Remove duplicates by ID, preserving order roughly
+    seen_ids = set()
+    unique_params = []
+    for p in params:
+        if id(p) not in seen_ids:
+            unique_params.append(p)
+            seen_ids.add(id(p))
+    return unique_params
 
 def get_parameter_groups(model, weight_decay=1e-2, base_lr=1e-3):
     # Get batch norm parameters (no weight decay)
@@ -66,19 +79,21 @@ def get_parameter_groups(model, weight_decay=1e-2, base_lr=1e-3):
     all_processed_param_ids = set()
 
     for i, part_layers in enumerate([group1_layers, group2_layers, group3_layers, group4_layers]):
+        print(f'part {i} \n{part_layers}')
         group_lr = group_lrs[i]
         part_params = list(chain.from_iterable(m.parameters() for m in part_layers if isinstance(m,nn.Module)))
 
         part_bn_bias_params = [p for p in norm_bias_params(part_layers) if p.requires_grad and id(p) not in all_processed_param_ids]
+        print(f'part {i} bn parameters {len(part_bn_bias_params)}')
         part_bn_bias_ids = set(id(p) for p in part_bn_bias_params)
 
         part_other_params = [p for p in part_params if p.requires_grad and id(p) not in all_processed_param_ids]
-
+        print(f'part {i} other parameters {len(part_bn_bias_params)}')
         if part_bn_bias_params:
             all_param_groups.append({'params': part_bn_bias_params, 'lr': group_lr, 'weight_decay': 0.0})
             all_processed_param_ids.update(part_bn_bias_ids)
         if part_other_params:
-            all_param_groups.append({'params': part_other_params, 'lr': group_lr, 'weight_decay': 0.0})
+            all_param_groups.append({'params': part_other_params, 'lr': group_lr, 'weight_decay': weight_decay})
             all_processed_param_ids.update(id(p) for p in part_other_params)
 
     total_model_params = set(id(p) for p in model.parameters() if p.requires_grad)
