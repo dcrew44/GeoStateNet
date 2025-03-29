@@ -91,11 +91,10 @@ class Trainer:
         print("WARNING: Could not find class names in dataset. Using numeric indices instead.")
         return []
 
-    def _build_optimizer(self, lr=0.001, betas=(0.9, 0.99), eps=1e-5):
+    def _build_optimizer(self, base_lr=0.001, betas=(0.9, 0.99), eps=1e-5):
         """Build optimizer with separate param groups for all BatchNorm layers."""
         # Create parameter groups with and without weight decay
-        param_groups = get_parameter_groups(self.model, base_lr=lr)
-        # param_groups.reverse()
+        param_groups = get_parameter_groups(self.model, base_lr=base_lr)
 
         return torch.optim.Adam(
             param_groups,
@@ -119,7 +118,7 @@ class Trainer:
         Returns:
             torch.optim.lr_scheduler._LRScheduler: Learning rate scheduler
         """
-        max_lrs = [base_lr / 100] * 2 + [base_lr / 10] * 2 + [base_lr] * 2
+        max_lrs = [param['lr'] for param in self.optimizer.param_groups]
         return torch.optim.lr_scheduler.OneCycleLR(
             optimizer=self.optimizer,
             max_lr=max_lrs,
@@ -273,7 +272,7 @@ class Trainer:
         metrics = {
             "train/loss": epoch_loss,
             "train/accuracy": epoch_acc,
-            "train/lr": self.scheduler.get_last_lr()[0]
+            "train/lr": self.scheduler.get_last_lr()[-1]
         }
         self.logger.log_metrics(metrics, step=epoch)
 
