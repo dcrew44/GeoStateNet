@@ -95,7 +95,7 @@ class Trainer:
         """Build optimizer with separate param groups for all BatchNorm layers."""
         # Create parameter groups with and without weight decay
         param_groups = get_parameter_groups(self.model, base_lr=lr)
-        param_groups.reverse()
+        # param_groups.reverse()
 
         return torch.optim.Adam(
             param_groups,
@@ -112,16 +112,17 @@ class Trainer:
         """
         return nn.CrossEntropyLoss()
 
-    def _build_scheduler(self, lr=0.01, betas=(0.85, 0.95), epochs=10):
+    def _build_scheduler(self, base_lr=0.01, betas=(0.85, 0.95), epochs=10):
         """
         Build learning rate scheduler.
 
         Returns:
             torch.optim.lr_scheduler._LRScheduler: Learning rate scheduler
         """
+        max_lrs = [base_lr / 100] * 2 + [base_lr / 10] * 2 + [base_lr] * 2
         return torch.optim.lr_scheduler.OneCycleLR(
             optimizer=self.optimizer,
-            max_lr=lr,
+            max_lr=max_lrs,
             total_steps=len(self.train_loader) * epochs,
             pct_start=0.25,
             div_factor=25,
@@ -407,8 +408,8 @@ class Trainer:
             phase1_epochs = getattr(self.config.hyperparameters, "phase1_epochs", 10)
             phase1_lr = getattr(self.config.hyperparameters, "phase1_lr", 1e-3)
 
-            self.optimizer = self._build_optimizer(lr=phase1_lr)
-            self.scheduler = self._build_scheduler(lr=phase1_lr, epochs=phase1_epochs)
+            self.optimizer = self._build_optimizer(base_lr=phase1_lr)
+            self.scheduler = self._build_scheduler(base_lr=phase1_lr, epochs=phase1_epochs)
             self.scaler = GradScaler(device=self.device)
             self.early_stopping = EarlyStopping(
                 patience=self.config.hyperparameters.patience,
@@ -434,7 +435,7 @@ class Trainer:
                 freeze_layer4=False
             )
             self.optimizer = self._build_optimizer(phase2_lr)
-            self.scheduler = self._build_scheduler(lr=phase2_lr, epochs=phase2_epochs)
+            self.scheduler = self._build_scheduler(base_lr=phase2_lr, epochs=phase2_epochs)
             self.scaler = GradScaler(device=self.device)
             self.early_stopping = EarlyStopping(
                 patience=self.config.hyperparameters.patience,
@@ -460,7 +461,7 @@ class Trainer:
                 freeze_layer4=False
             )
             self.optimizer = self._build_optimizer(phase3_lr)
-            self.scheduler = self._build_scheduler(lr=phase3_lr, epochs=phase3_epochs)
+            self.scheduler = self._build_scheduler(base_lr=phase3_lr, epochs=phase3_epochs)
             self.scaler = GradScaler(device=self.device)
             self.early_stopping = EarlyStopping(
                 patience=self.config.hyperparameters.patience,

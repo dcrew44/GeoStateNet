@@ -70,17 +70,16 @@ def get_recursive_params(modules_list):
 def get_parameter_groups(model, weight_decay=1e-2, base_lr=1e-3):
     # Get batch norm parameters (no weight decay)
     group1_layers = [model.conv1, model.bn1, model.relu, model.maxpool, model.layer1, model.layer2]
-    group2_layers = [model.layer3]
-    group3_layers = [model.layer4]
-    group4_layers = [model.fc]
+    group2_layers = [model.layer3, model.layer4]
+    group3_layers = [model.fc]
 
-    group_lrs = [base_lr / 100, base_lr / 10, base_lr, base_lr * 10]
+
+    group_lrs = [base_lr / 100, base_lr / 10, base_lr]
 
     all_param_groups = []
     all_processed_param_ids = set()
 
-    for i, part_layers in enumerate([group1_layers, group2_layers, group3_layers, group4_layers]):
-
+    for i, part_layers in enumerate([group1_layers, group2_layers, group3_layers]):
         group_lr = group_lrs[i]
         part_params = list(chain.from_iterable(m.parameters() for m in part_layers if isinstance(m,nn.Module)))
 
@@ -211,13 +210,14 @@ def unfreeze_model_layers(model, freeze_conv1=True, freeze_bn1=True, freeze_laye
         param.requires_grad = True
 
     # Then freeze selected layers
-    if freeze_conv1:
-        for param in model.conv1.parameters():
-            param.requires_grad = False
+    for param in model.conv1.parameters():
+        param.requires_grad = False
 
-    if freeze_bn1:
-        for param in model.bn1.parameters():
-            param.requires_grad = False
+    for param in model.bn1.parameters():
+        param.requires_grad = True
+
+    for param in model.relu.parameters():
+        param.requires_grad = False
 
     for param in model.maxpool.parameters():
         param.requires_grad = False
@@ -239,7 +239,6 @@ def unfreeze_model_layers(model, freeze_conv1=True, freeze_bn1=True, freeze_laye
             param.requires_grad = False
 
     unfreeze_bn(model)
-
     # Always ensure the head is trainable
     for param in model.fc.parameters():
         param.requires_grad = True
