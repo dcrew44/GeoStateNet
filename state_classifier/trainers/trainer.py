@@ -96,7 +96,7 @@ class Trainer:
         # Create parameter groups with and without weight decay
         param_groups = get_parameter_groups(self.model, base_lr=base_lr)
 
-        return torch.optim.Adam(
+        return torch.optim.AdamW(
             param_groups,
             betas=betas,
             eps=eps
