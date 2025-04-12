@@ -10,7 +10,7 @@ class EarlyStopping:
     Stops training when a monitored metric has stopped improving.
     """
 
-    def __init__(self, patience=5, delta=0.0):
+    def __init__(self, patience=2, delta=0.0):
         """
         Initialize the EarlyStopping object.
 

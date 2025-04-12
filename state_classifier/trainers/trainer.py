@@ -40,7 +40,7 @@ class Trainer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Setup components
-        self.optimizer = self._build_optimizer()
+        self.optimizer = self._build_optimizer(wd=self.config.hyperparameters.weight_decay)
         self.loss_fn = self._build_loss()
         self.scheduler = self._build_scheduler()
         self.scaler = GradScaler(device=self.device)
@@ -91,10 +91,10 @@ class Trainer:
         print("WARNING: Could not find class names in dataset. Using numeric indices instead.")
         return []
 
-    def _build_optimizer(self, base_lr=0.001, betas=(0.9, 0.99), eps=1e-5):
+    def _build_optimizer(self, base_lr=0.001, betas=(0.9, 0.99), eps=1e-5, wd=0.01):
         """Build optimizer with separate param groups for all BatchNorm layers."""
         # Create parameter groups with and without weight decay
-        param_groups = get_parameter_groups(self.model, base_lr=base_lr)
+        param_groups = get_parameter_groups(self.model, base_lr=base_lr, weight_decay=wd)
 
         return torch.optim.AdamW(
             param_groups,
@@ -407,7 +407,7 @@ class Trainer:
             phase1_epochs = getattr(self.config.hyperparameters, "phase1_epochs", 10)
             phase1_lr = getattr(self.config.hyperparameters, "phase1_lr", 1e-3)
 
-            self.optimizer = self._build_optimizer(base_lr=phase1_lr)
+            self.optimizer = self._build_optimizer(base_lr=phase1_lr, wd=self.config.hyperparameters.weight_decay)
             self.scheduler = self._build_scheduler(base_lr=phase1_lr, epochs=phase1_epochs)
             self.scaler = GradScaler(device=self.device)
             self.early_stopping = EarlyStopping(
@@ -433,7 +433,7 @@ class Trainer:
                 freeze_layer3=True,
                 freeze_layer4=False
             )
-            self.optimizer = self._build_optimizer(phase2_lr)
+            self.optimizer = self._build_optimizer(phase2_lr, wd=self.config.hyperparameters.weight_decay)
             self.scheduler = self._build_scheduler(base_lr=phase2_lr, epochs=phase2_epochs)
             self.scaler = GradScaler(device=self.device)
             self.early_stopping = EarlyStopping(
@@ -459,7 +459,7 @@ class Trainer:
                 freeze_layer3=False,
                 freeze_layer4=False
             )
-            self.optimizer = self._build_optimizer(phase3_lr)
+            self.optimizer = self._build_optimizer(phase3_lr, wd=self.config.hyperparameters.weight_decay)
             self.scheduler = self._build_scheduler(base_lr=phase3_lr, epochs=phase3_epochs)
             self.scaler = GradScaler(device=self.device)
             self.early_stopping = EarlyStopping(

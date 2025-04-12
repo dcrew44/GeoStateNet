@@ -26,7 +26,7 @@ class AdaptiveConcatPool2d(nn.Module):
         """Forward pass."""
         return torch.cat([self.mp(x), self.ap(x)], dim=1)
 
-norm_types = (AdaptiveConcatPool2d, nn.BatchNorm2d, nn.BatchNorm1d, nn.BatchNorm3d)
+norm_types = (nn.BatchNorm2d, nn.BatchNorm1d, nn.BatchNorm3d)
 
 def trainable_params(m):
     return filter(lambda p: p.requires_grad, m.parameters())
@@ -214,7 +214,7 @@ def unfreeze_model_layers(model, freeze_conv1=True, freeze_bn1=True, freeze_laye
         param.requires_grad = False
 
     for param in model.bn1.parameters():
-        param.requires_grad = True
+        param.requires_grad = False
 
     for param in model.relu.parameters():
         param.requires_grad = False

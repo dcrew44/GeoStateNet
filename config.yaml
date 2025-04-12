@@ -26,7 +26,7 @@ hyperparameters:
   weight_decay: 0.01
   momentum: 0.9
   betas: [0.9, 0.999]
-  optimizer: "Adam"
+  optimizer: "AdamW"
 
   phase1_epochs: 10
   phase1_lr: 0.001
@@ -40,7 +40,7 @@ hyperparameters:
   phase3_lr: 0.00025
 
   # Early stopping
-  patience: 3
+  patience: 2
   early_stopping_delta: 0.001
 
 train_phases:
