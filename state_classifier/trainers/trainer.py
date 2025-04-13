@@ -109,7 +109,7 @@ class Trainer:
         Returns:
             nn.Module: Loss function
         """
-        return nn.CrossEntropyLoss()
+        return nn.CrossEntropyLoss(label_smoothing=0.1)
 
     def _build_scheduler(self, base_lr=0.01, betas=(0.85, 0.95), epochs=10):
         """
