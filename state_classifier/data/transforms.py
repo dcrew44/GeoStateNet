@@ -47,6 +47,9 @@ def get_train_transforms(size=(224, 224)):
         v2.CenterCrop(size=size),
 
         v2.ToDtype(torch.float32, scale=True),
+
+        v2.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0),
+
         v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ])
 

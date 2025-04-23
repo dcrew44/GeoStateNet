@@ -65,7 +65,7 @@ class Experiment:
             project=self.config.wandb.project,
             config=self._get_config_dict()
         )
-        wandb.watch(self.model)
+        wandb.watch(self.model, log="all", log_freq=1000)
 
         # Train model
         self.trainer.train()
@@ -76,6 +76,9 @@ class Experiment:
 
         # Finish logging
         wandb.finish()
+
+    def resume(self, resume_path):
+        pass
 
     def train(self):
         """Run only the training part of the experiment."""
@@ -126,7 +129,6 @@ class Experiment:
 
         # Get the full dataset size from config, default to 1.0 if not present
         full_dataset_size = getattr(self.config, 'full_dataset_size', 1.0)
-        print(f"Using {full_dataset_size * 100:.1f}% of the full dataset")
 
         # Create datasets
         train_set, val_set = create_train_val_datasets(
@@ -136,8 +138,6 @@ class Experiment:
             train_val_split=self.config.train_val_split,
             seed=self.config.seed
         )
-
-        print(f"Created training set with {len(train_set)} samples and validation set with {len(val_set)} samples")
 
         # Create dataloaders
         train_loader = DataLoader(
