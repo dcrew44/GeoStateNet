@@ -51,7 +51,7 @@ pip install -e .
 
 ```bash
 # Download the trained model checkpoint (76% accuracy)
-wget https://your-model-url/best_model.pth -O checkpoints/best_model.pth
+wget https://github.com/dcrew44/GeoStateNet/releases/download/v1.0/best_model.pth -O checkpoints/best_model.pth
 ```
 
 ### Running Inference
